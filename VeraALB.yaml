@@ -1,0 +1,187 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create an AutoscalingGroup, a launch template for Webservers, a security group for webservers, an Application load balancer, an loadbalancer security group, a target groups, a listener and listener rules.
+
+Parameters:
+  MyVpc:
+    Type: String
+    Description: The virtual private cloud to operate in
+    Default: "vpc-00511fa911188323b"
+
+  MySubn1:
+    Type: String
+    Description: The 1st subnet
+    Default: "subnet-0f41da56fbba849f3"
+  MySubn2:
+    Type: String
+    Description: The 2nd subnet
+    Default: "subnet-08f01e66c3c9c1528"
+  MyPubSubn1:
+    Type: String
+    Description: The 1st subnet
+    Default: "subnet-0e000d7386e5c367e"
+  MyPubSubn2:
+    Type: String
+    Description: The 2nd subnet
+    Default: "subnet-0af003aead85572a5"
+
+  NameOnPage:
+    Type: String
+    Description: The name to place on the web page
+    Default: "Vera"
+
+Resources:
+  AnnsLaunchTemplate:
+    Type: 'AWS::EC2::LaunchTemplate'
+    Description: A template for the webserver EC2s that displays a welcome page with a specified name on, the date and time of creation and a random number 1-10.
+    Properties:
+      LaunchTemplateName: !Sub '${AWS::StackName}-launch-template-for-auto-scaling'
+      LaunchTemplateData:
+        ImageId: 'ami-0fc970315c2d38f01'
+        InstanceType: t2.micro
+        UserData: 
+          Fn::Base64:
+            !Sub |
+              #!/bin/bash -x
+              yum update -y
+              amazon-linux-extras install nginx1 -y
+              systemctl start nginx
+              systemctl enable nginx
+              sed -i -e "s/Administrator/${NameOnPage} $(date)/"        /usr/share/nginx/html/index.html
+              sed -i -e "s/UTC 2021/--  $(( ( RANDOM % 10 )  + 1 ))/"   /usr/share/nginx/html/index.html
+        KeyName: MyBestKey
+        SecurityGroupIds: 
+          - !Ref AnnsSecGrp
+        Monitoring: 
+          Enabled: true
+
+  AnnsSecGrp:
+    Type: 'AWS::EC2::SecurityGroup'
+    Description: A security group suitable for webservers
+    Properties:
+      GroupDescription: Enable SSH access from Anns Cloud9 via port 22
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 172.31.16.22/32
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref MyVpc
+      Tags:
+        - Key: "Name"
+          Value: "WebSecGrp"
+        - Key: "createdBy"
+          Value: "Ann Feely"
+
+
+  AnnsASG:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Description: An ASG that launches the webservers with 'AnnsLaunchTemplate'and connects to 'AnnsTargetGroup'
+    Properties:
+      AutoScalingGroupName: AnnsASG
+      MinSize: "1"
+      MaxSize: "3"
+      DesiredCapacity: "2"
+      LaunchTemplate:
+        LaunchTemplateId: !Ref AnnsLaunchTemplate
+        Version: !GetAtt AnnsLaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: "Name"
+          Value: "VerasWeb"
+          PropagateAtLaunch: true
+      VPCZoneIdentifier:
+        - !Ref MySubn1
+        - !Ref MySubn2
+      TargetGroupARNs:
+        - !Ref AnnsTargetGroup
+
+  AnnsTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Description: A target group in this VPC for the autoscaled webservers 'AnnsWeb'
+    Properties:
+      Port: 80
+      Protocol: "HTTP"
+      HealthCheckPort: "traffic-port"
+      HealthCheckProtocol: "HTTP"
+      TargetType: "instance"
+      Matcher: 
+        HttpCode: "200"
+      TargetGroupAttributes:
+        - Key: "load_balancing.algorithm.type"
+          Value: "round_robin"
+      VpcId: !Ref MyVpc
+      Name: "AnnsTG"
+#-------------------------
+
+  AnnsALB:
+    Description: An Application load balancer 
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties: 
+      Name: "AnnsALB"
+      Type: "application"
+      Scheme: "internet-facing"
+      Subnets: 
+      - !Ref MyPubSubn1
+      - !Ref MyPubSubn2
+      SecurityGroups: 
+        - !Ref ALBSecGrp
+
+  ALBSecGrp:
+    Description: A security group suitable for application load balancer
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: "security group for ALB"
+      GroupName: "test-ALB-SG"
+      Tags: 
+      - Key: "Name"
+        Value: "WebSecGrp"
+      - Key: "createdBy"
+        Value: "Ann Feely"
+      VpcId: !Ref MyVpc
+      SecurityGroupIngress: 
+        - CidrIp: "0.0.0.0/0"
+          FromPort: 80
+          IpProtocol: "tcp"
+          ToPort: 80
+          
+  AnnsListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties: 
+      LoadBalancerArn: !Ref AnnsALB
+      Port: 80
+      Protocol: "HTTP"
+      DefaultActions:
+      - Order: 1
+        TargetGroupArn: !Ref AnnsTargetGroup
+        Type: "forward"
+#      - Action
+#      -----
+#      for a listener that redirects e g https to http must state redirectconfig and then number
+#        Order: 1
+#        RedirectConfig: 
+##        --> RedirectConfig
+#      -----
+#-------------------------
+Outputs:      
+    ALB:
+        Description: The created Application load balancer
+        Value: !Ref AnnsALB
+    ASG:
+        Description: The created AutoScalingGroup
+        Value: !Ref AnnsASG
+    TG:
+        Description: The created TargetGroup
+        Value: !Ref AnnsTargetGroup
+    SG1:
+        Description: The created SecurityGroup for the web servers
+        Value: !Ref AnnsSecGrp
+    SG2:
+        Description: The created SecurityGroup for the load balancer
+        Value: !Ref ALBSecGrp
+    SN:
+        Description: test
+        Value: !Join [ ",", [ !Ref MySubn1, !Ref MySubn2 ]]

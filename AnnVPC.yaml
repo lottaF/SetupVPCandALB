@@ -1,0 +1,240 @@
+---
+Description:  Sets up a theVPC, with two public and two private subnets realized in two availability
+  zones. An internet gateway is setup, with a default route on the public subnets. Two NAT gateways 
+  are setup; one in each availability zone. Default routes for these are defined in the in the 
+  private subnets.
+
+Parameters:
+
+  Environment:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: "AnnsCloud"
+
+  VpcCIDR:
+    Description: The IP range of this VPC - in CIDR notation
+    Type: String
+    Default: 10.192.0.0/16
+
+  PubSubn1CIDR:
+    Description: The IP range of the public subnet in the first availability zone
+    Type: String
+    Default: 10.192.10.0/24
+
+  PubSubn2CIDR:
+    Description: The IP range of the public subnet in the second availability zone
+    Type: String
+    Default: 10.192.11.0/24
+
+  PrivSubn1CIDR:
+    Description: The IP range of the private subnet in the first availability zone
+    Type: String
+    Default: 10.192.20.0/24
+
+  PrivSubn2CIDR:
+    Description: The IP range of the private subnet in the second availability zone
+    Type: String
+    Default: 10.192.21.0/24
+
+Resources:
+  theVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref Environment
+
+  inetGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref Environment
+
+  inetGWatt:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref inetGW
+      VpcId: !Ref theVPC
+
+  PubSubn1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref theVPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PubSubn1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} public subnet (AZ1)
+
+  PubSubn2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref theVPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PubSubn2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} public subnet (AZ2)
+
+  PrivSubn1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref theVPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref PrivSubn1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} private subnet (AZ1)
+
+  PrivSubn2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref theVPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PrivSubn2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} private subnet (AZ2)
+
+  NatGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: inetGWatt
+    Properties:
+      Domain: vpc
+
+  NatGateway2EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: inetGWatt
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref PubSubn1
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway2EIP.AllocationId
+      SubnetId: !Ref PubSubn2
+
+  PubRteTab:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref theVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} public routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: inetGWatt
+    Properties:
+      RouteTableId: !Ref PubRteTab
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref inetGW
+
+  PubSubn1RteTabAss:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PubRteTab
+      SubnetId: !Ref PubSubn1
+
+  PubSubn2RteTabAss:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PubRteTab
+      SubnetId: !Ref PubSubn2
+
+
+  PrivRteTab1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref theVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} private routes (AZ1)
+
+  DefaultPrivRte1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivRteTab1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  PrivSubn1RteTabAss:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivRteTab1
+      SubnetId: !Ref PrivSubn1
+
+  PrivRteTab2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref theVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} private routes (AZ2)
+
+  DefaultPrivRte2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivRteTab2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  PrivSubn2RteTabAss:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivRteTab2
+      SubnetId: !Ref PrivSubn2
+
+  noIngressSecGrp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "no-ingress-sg"
+      GroupDescription: "Security group with no ingress rule"
+      VpcId: !Ref theVPC
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref theVPC
+
+  PublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [ ",", [ !Ref PubSubn1, !Ref PubSubn2 ]]
+
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivSubn1, !Ref PrivSubn2 ]]
+
+  PubSubn1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref PubSubn1
+
+  PubSubn2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref PubSubn2
+
+  PrivSubn1:
+    Description: A reference to the private subnet in the 1st Availability Zone
+    Value: !Ref PrivSubn1
+
+  PrivSubn2:
+    Description: A reference to the private subnet in the 2nd Availability Zone
+    Value: !Ref PrivSubn2
+
+  noIngressSecGrp:
+    Description: Security group with no ingress rule
+    Value: !Ref noIngressSecGrp
