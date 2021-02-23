@@ -1,5 +1,5 @@
 ---
-Description:  Sets up a theVPC, with two public and two private subnets realized in two availability
+Description:  Sets up a VPC with two public and two private subnets realized in two availability
   zones. An internet gateway is setup, with a default route on the public subnets. Two NAT gateways 
   are setup; one in each availability zone. Default routes for these are defined in the in the 
   private subnets.
@@ -41,8 +41,8 @@ Resources:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VpcCIDR
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
+      EnableDnsSupport: true      # default is false. Required to support DNS resolution.
+      EnableDnsHostnames: true    # default is fals. Requires parem above to be true. Enables the setting of DNS host names.
       Tags:
         - Key: Name
           Value: !Ref Environment
