@@ -1,40 +1,50 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: Create an AutoscalingGroup, a launch template for Webservers, a security group for webservers, an Application load balancer, an loadbalancer security group, a target groups, a listener and listener rules.
+Description: Creates the rescources required for autoscaling of webservers across two subnets and a 
+             loadbalancer to distribute the requests over the executing webserver instances. 
+             Which are following - an autoscaling group, a launch template for webservers, a webserver security group, 
+             an application load balancer, an loadbalancer security group, a target group, a listener 
+             and listener rules.
 
 Parameters:
   MyVpc:
-    Type: String
     Description: The virtual private cloud to operate in
-    Default: "vpc-00511fa911188323b"
+    Type: String
+#    Default: "vpc-00511fa911188323b"
 
   MySubn1:
+    Description: The 1st private subnet
     Type: String
-    Description: The 1st subnet
-    Default: "subnet-0f41da56fbba849f3"
+#    Default: "subnet-0f41da56fbba849f3"
   MySubn2:
+    Description: The 2nd private subnet
     Type: String
-    Description: The 2nd subnet
-    Default: "subnet-08f01e66c3c9c1528"
+#    Default: "subnet-08f01e66c3c9c1528"
   MyPubSubn1:
+    Description: The 1st public subnet
     Type: String
-    Description: The 1st subnet
-    Default: "subnet-0e000d7386e5c367e"
+#    Default: "subnet-0e000d7386e5c367e"
   MyPubSubn2:
+    Description: The 2nd public subnet
     Type: String
-    Description: The 2nd subnet
-    Default: "subnet-0af003aead85572a5"
+#    Default: "subnet-0af003aead85572a5"
+
+  DevEnvCIDR:
+    Description: The IP range of the development environments with allowed tcp/ssh access. In CIDR notation.
+    Type: String
+    Default: 172.31.16.22/32
 
   NameOnPage:
-    Type: String
     Description: The name to place on the web page
-    Default: "Vera"
+    Type: String
+    Default: "Lotta"
 
 Resources:
   AnnsLaunchTemplate:
+    Description: A template for the webserver EC2s that displays a welcome page with a name on - specified by parameter 
+                 'NameOnPage', the date and time of creation and a random number 1-10 (just to help tell them apart).
     Type: 'AWS::EC2::LaunchTemplate'
-    Description: A template for the webserver EC2s that displays a welcome page with a specified name on, the date and time of creation and a random number 1-10.
     Properties:
       LaunchTemplateName: !Sub '${AWS::StackName}-launch-template-for-auto-scaling'
       LaunchTemplateData:
@@ -52,35 +62,34 @@ Resources:
               sed -i -e "s/UTC 2021/--  $(( ( RANDOM % 10 )  + 1 ))/"   /usr/share/nginx/html/index.html
         KeyName: MyBestKey
         SecurityGroupIds: 
-          - !Ref AnnsSecGrp
+          - !Ref WSSecGrp
         Monitoring: 
           Enabled: true
 
-  AnnsSecGrp:
+  WSSecGrp:
+    Description: A security group for the webservers. 
     Type: 'AWS::EC2::SecurityGroup'
-    Description: A security group suitable for webservers
     Properties:
       GroupDescription: Enable SSH access from Anns Cloud9 via port 22
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '22'
           ToPort: '22'
-          CidrIp: 172.31.16.22/32
+          CidrIp: !Ref DevEnvCIDR  # from development hosts only
         - IpProtocol: tcp
           FromPort: '80'
           ToPort: '80'
-          CidrIp: 0.0.0.0/0
+          CidrIp: 0.0.0.0/0   # from anywhere
       VpcId: !Ref MyVpc
       Tags:
         - Key: "Name"
           Value: "WebSecGrp"
-        - Key: "createdBy"
+        - Key: "createdBy"    
           Value: "Ann Feely"
 
-
   AnnsASG:
-    Type: 'AWS::AutoScaling::AutoScalingGroup'
     Description: An ASG that launches the webservers with 'AnnsLaunchTemplate'and connects to 'AnnsTargetGroup'
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
     Properties:
       AutoScalingGroupName: AnnsASG
       MinSize: "1"
@@ -91,7 +100,7 @@ Resources:
         Version: !GetAtt AnnsLaunchTemplate.LatestVersionNumber
       Tags:
         - Key: "Name"
-          Value: "VerasWeb"
+          Value: !Sub Webserver - ${NameOnPage}
           PropagateAtLaunch: true
       VPCZoneIdentifier:
         - !Ref MySubn1
@@ -100,8 +109,8 @@ Resources:
         - !Ref AnnsTargetGroup
 
   AnnsTargetGroup:
+    Description: A target group in this VPC for the autoscaled webservers.
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
-    Description: A target group in this VPC for the autoscaled webservers 'AnnsWeb'
     Properties:
       Port: 80
       Protocol: "HTTP"
@@ -115,7 +124,6 @@ Resources:
           Value: "round_robin"
       VpcId: !Ref MyVpc
       Name: "AnnsTG"
-#-------------------------
 
   AnnsALB:
     Description: An Application load balancer 
@@ -165,7 +173,6 @@ Resources:
 #        RedirectConfig: 
 ##        --> RedirectConfig
 #      -----
-#-------------------------
 Outputs:      
     ALB:
         Description: The created Application load balancer
@@ -178,7 +185,7 @@ Outputs:
         Value: !Ref AnnsTargetGroup
     SG1:
         Description: The created SecurityGroup for the web servers
-        Value: !Ref AnnsSecGrp
+        Value: !Ref WSSecGrp
     SG2:
         Description: The created SecurityGroup for the load balancer
         Value: !Ref ALBSecGrp
