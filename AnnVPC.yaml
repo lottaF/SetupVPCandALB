@@ -38,6 +38,7 @@ Parameters:
 
 Resources:
   theVPC:
+    Description: I am definately changing this file!!!
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VpcCIDR
