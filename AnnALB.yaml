@@ -4,8 +4,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Creates the rescources required for autoscaling of webservers across two subnets and a 
              loadbalancer to distribute the requests over the executing webserver instances. 
              Which are following - an autoscaling group, a launch template for webservers, a webserver security group, 
-             an application load balancer, an loadbalancer security group, a target group, a listener 
-             and listener rules.
+             an application load balancer, an loadbalancer security group, a target group, two listeners (one for http 
+             and one for https).
 
 Parameters:
   MyVpc:
@@ -38,7 +38,7 @@ Parameters:
   NameOnPage:
     Description: The name to place on the web page
     Type: String
-    Default: "Jonathan"
+    Default: "Lotta"
 
 Resources:
   AnnsLaunchTemplate:
@@ -80,6 +80,7 @@ Resources:
           FromPort: '80'
           ToPort: '80'
           CidrIp: 0.0.0.0/0   # from anywhere
+#          SourceSecurityGroupIds: !GetAtt ALBSecGrp.GroupId
       VpcId: !Ref MyVpc
       Tags:
         - Key: "Name"
@@ -139,7 +140,7 @@ Resources:
         - !Ref ALBSecGrp
 
   ALBSecGrp:
-    Description: A security group application load balancer
+    Description: A security group suitable for application load balancer
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
       GroupDescription: "security group for ALB"
@@ -155,9 +156,9 @@ Resources:
           FromPort: 80
           IpProtocol: "tcp"
           ToPort: 80
-          
+ 
+        
   AnnsListener:
-    Description: An HTTP listener. Forwrds public requests to the target group instances.
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
     Properties: 
       LoadBalancerArn: !Ref AnnsALB
@@ -167,13 +168,44 @@ Resources:
       - Order: 1
         TargetGroupArn: !Ref AnnsTargetGroup
         Type: "forward"
-#      - Action
-#      -----
+      - Action
+#    -----
 #      for a listener that redirects e g https to http must state redirectconfig and then number
 #        Order: 1
 #        RedirectConfig: 
 ##        --> RedirectConfig
-#      -----
+# >>>>>
+#  HTTPSListener:
+#    Type: "AWS::ElasticLoadBalancingV2::Listener"
+#    Properties:
+#      LoadBalancerArn: !Ref AnnsALB
+#      Port: 443
+#      Protocol: "HTTPS"
+#      SslPolicy: "ELBSecurityPolicy-2016-08"
+#      Certificates: 
+#        - CertificateArn: arn:aws:acm:eu-west-1:388221768061:certificate/5ce91335-d980-40b5-b27a-f0a0ec665951
+#      DefaultActions: 
+#        - Order: 1
+#          TargetGroupArn: !Ref AnnsTargetGroup
+#          Type: "forward"
+#
+#  HTTPListener:
+#    Type: "AWS::ElasticLoadBalancingV2::Listener"
+#    Properties:
+#      LoadBalancerArn: !Ref AnnsALB
+#      Port: 80
+#      Protocol: "HTTP"
+#      DefaultActions: 
+#        - Order: 1
+#          Type: "redirect"
+#          RedirectConfig: 
+#            Protocol: "HTTPS"
+#            Port: "443"
+#            Host: "#{host}"
+#            Path: "/#{path}"
+#            Query: "#{query}"
+#            StatusCode: "HTTP_301"
+# <<<<<
 Outputs:      
     ALB:
         Description: The created Application load balancer
