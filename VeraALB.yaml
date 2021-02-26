@@ -6,7 +6,10 @@ Description: Creates the rescources required for autoscaling of webservers acros
              Which are following - an autoscaling group, a launch template for webservers, a webserver security group, 
              an application load balancer, an loadbalancer security group, a target group, a listener 
              and listener rules.
-
+             Edit the parameters below for the actual deployment;
+             Specify the VPC id, a private and a public subnetwork pair in two separate availability zones.
+             Edit the CIDR range of the development environment connected to the deployment.
+             And alter the name to be sated on the Webpage (also used as in nametag of the actual webservers).
 Parameters:
   MyVpc:
     Description: The virtual private cloud to operate in
@@ -38,7 +41,7 @@ Parameters:
   NameOnPage:
     Description: The name to place on the web page
     Type: String
-    Default: "Jonathan"
+    Default: "Lotta"
 
 Resources:
   AnnsLaunchTemplate:
@@ -79,6 +82,10 @@ Resources:
         - IpProtocol: tcp
           FromPort: '80'
           ToPort: '80'
+          CidrIp: 0.0.0.0/0   # from anywhere
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
           CidrIp: 0.0.0.0/0   # from anywhere
       VpcId: !Ref MyVpc
       Tags:
@@ -132,6 +139,7 @@ Resources:
       Name: "AnnsALB"
       Type: "application"
       Scheme: "internet-facing"
+      IpAddressType: "ipv4"
       Subnets: 
       - !Ref MyPubSubn1
       - !Ref MyPubSubn2
@@ -143,10 +151,10 @@ Resources:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
       GroupDescription: "security group for ALB"
-      GroupName: "test-ALB-SG"
+      GroupName: "ALB-SG"
       Tags: 
       - Key: "Name"
-        Value: "WebSecGrp"
+        Value: "AppLBSecGrp"
       - Key: "createdBy"
         Value: "Ann Feely"
       VpcId: !Ref MyVpc
@@ -155,18 +163,22 @@ Resources:
           FromPort: 80
           IpProtocol: "tcp"
           ToPort: 80
+        - CidrIp: "0.0.0.0/0"
+          FromPort: 443
+          IpProtocol: "tcp"
+          ToPort: 443
           
-  AnnsListener:
-    Description: An HTTP listener. Forwrds public requests to the target group instances.
-    Type: 'AWS::ElasticLoadBalancingV2::Listener'
-    Properties: 
-      LoadBalancerArn: !Ref AnnsALB
-      Port: 80
-      Protocol: "HTTP"
-      DefaultActions:
-      - Order: 1
-        TargetGroupArn: !Ref AnnsTargetGroup
-        Type: "forward"
+#  AnnsListener:
+#    Description: An HTTP listener. Forwrds public requests to the target group instances.
+#    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+#    Properties: 
+#      LoadBalancerArn: !Ref AnnsALB
+#      Port: 80
+#      Protocol: "HTTP"
+#      DefaultActions:
+#      - Order: 1
+#        TargetGroupArn: !Ref AnnsTargetGroup
+#        Type: "forward"
 #      - Action
 #      -----
 #      for a listener that redirects e g https to http must state redirectconfig and then number
@@ -174,6 +186,38 @@ Resources:
 #        RedirectConfig: 
 ##        --> RedirectConfig
 #      -----
+# >>>>>
+  HTTPSListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      LoadBalancerArn: !Ref AnnsALB
+      Port: 443
+      Protocol: "HTTPS"
+      SslPolicy: "ELBSecurityPolicy-2016-08"
+      Certificates: 
+        - CertificateArn: arn:aws:acm:eu-west-1:388221768061:certificate/47ec85e0-ddfe-4bb1-a77b-a324029cfd2a
+      DefaultActions: 
+        - Order: 1
+          TargetGroupArn: !Ref AnnsTargetGroup
+          Type: "forward"
+
+  HTTPListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      LoadBalancerArn: !Ref AnnsALB
+      Port: 80
+      Protocol: "HTTP"
+      DefaultActions: 
+        - Order: 1
+          Type: "redirect"
+          RedirectConfig: 
+            Protocol: "HTTPS"
+            Port: "443"
+            Host: "#{host}"
+            Path: "/#{path}"
+            Query: "#{query}"
+            StatusCode: "HTTP_301"
+# <<<<<
 Outputs:      
     ALB:
         Description: The created Application load balancer
