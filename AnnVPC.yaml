@@ -88,7 +88,7 @@ Resources:
       MapPublicIpOnLaunch: true  # Make public.
       Tags:
         - Key: Name
-          Value: !Sub ${Environment} public subnet (AZ1)
+          Value: !Sub "${Environment} public subnet (AZ1)"
 
   PubSubn2:
     Description: The public subnet in availability zone 2.
@@ -100,7 +100,7 @@ Resources:
       MapPublicIpOnLaunch: true     # Make public.
       Tags:
         - Key: Name
-          Value: !Sub ${Environment} public subnet (AZ2)
+          Value: !Sub "${Environment} public subnet (AZ2)"
 
   PrivSubn1:
     Description: The private subnet in availability zone 1. 
@@ -112,7 +112,7 @@ Resources:
       MapPublicIpOnLaunch: false  # Make private.
       Tags:
         - Key: Name
-          Value: !Sub ${Environment} private subnet (AZ1)
+          Value: !Sub "${Environment} private subnet (AZ1)"
 
   PrivSubn2:
     Description:  The private subnet in availability zone 2. 
@@ -124,7 +124,7 @@ Resources:
       MapPublicIpOnLaunch: false   # Make private.
       Tags:
         - Key: Name
-          Value: !Sub ${Environment} private subnet (AZ2)
+          Value: !Sub "${Environment} private subnet (AZ2)"
 
   NatGateway1EIP:
     Description: Specify a first Elastic IP address and associate it with the VPC GW.
@@ -164,7 +164,7 @@ Resources:
       VpcId: !Ref theVPC
       Tags:
         - Key: Name
-          Value: !Sub ${Environment} public routes
+          Value: !Sub "${Environment} public routes"
 
   DefaultPublicRoute:
     Description: Specify a route in the public route table of the VPC. Set the actual internet gateway defined.
@@ -197,7 +197,7 @@ Resources:
       VpcId: !Ref theVPC
       Tags:
         - Key: Name
-          Value: !Sub ${Environment} private routes (AZ1)
+          Value: !Sub "${Environment} private routes (AZ1)"
 
   DefaultPrivRte1:
     Description: Specify a route in the private route table in availability zone 1. Set the NAT gateway of public subnet in availability zone 1.
@@ -222,7 +222,7 @@ Resources:
       VpcId: !Ref theVPC
       Tags:
         - Key: Name
-          Value: !Sub ${Environment} private routes (AZ2)
+          Value: !Sub "${Environment} private routes (AZ2)"
 
   DefaultPrivRte2:
     Description: Specify a route in the private route table in availability zone 2. 
@@ -241,9 +241,6 @@ Resources:
       SubnetId: !Ref PrivSubn2
 
 Outputs:
-  VPC:
-    Description: A reference to the created VPC
-    Value: !Ref theVPC
 
   PublicSubnets:
     Description: A list of the public subnets
@@ -268,4 +265,7 @@ Outputs:
   PrivSubn2:
     Description: A reference to the private subnet in the 2nd Availability Zone
     Value: !Ref PrivSubn2
-
+    
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref theVPC

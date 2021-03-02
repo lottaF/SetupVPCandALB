@@ -14,24 +14,24 @@ Parameters:
   MyVpc:
     Description: The virtual private cloud to operate in
     Type: String
-    Default: "vpc-0ef00670f39fdae42"
+    Default: "vpc-0e2d5515f7d91ed3d"
 
   MySubn1:
     Description: The 1st private subnet
     Type: String
-    Default: "subnet-04b62cd9e7f128b7f"
+    Default: "subnet-06cf1a3225c27e63e"
   MySubn2:
     Description: The 2nd private subnet
     Type: String
-    Default: "subnet-038f983bc76e2b67a"
+    Default: "subnet-0f86fb08b6e9837ff"
   MyPubSubn1:
     Description: The 1st public subnet
     Type: String
-    Default: "subnet-0437d33194c2318c5"
+    Default: "subnet-0e8f6af0c0c9c59b8"
   MyPubSubn2:
     Description: The 2nd public subnet
     Type: String
-    Default: "subnet-079928d1459e3eb30"
+    Default: "subnet-0d1f49f8d6291e9e4"
 
   DevEnvCIDR:
     Description: The IP range of the development environments with allowed tcp/ssh access. In CIDR notation.
@@ -41,7 +41,7 @@ Parameters:
   NameOnPage:
     Description: The name to place on the web page
     Type: String
-    Default: "Lotta"
+    Default: "Vera"
 
 Resources:
   AnnsLaunchTemplate:
@@ -234,6 +234,3 @@ Outputs:
     SG2:
         Description: The created SecurityGroup for the load balancer
         Value: !Ref ALBSecGrp
-    SN:
-        Description: test
-        Value: !Join [ ",", [ !Ref MySubn1, !Ref MySubn2 ]]
